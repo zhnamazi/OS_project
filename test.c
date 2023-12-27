@@ -1,35 +1,33 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <pthread.h>
 
-// Function executed by the first thread
-void* threadFunction1(void* arg) {
-    for (int i = 0; i < 5; i++) {
-        printf("Thread 1: %d\n", i);
-    }
-    return NULL;
-}
-
-// Function executed by the second thread
-void* threadFunction2(void* arg) {
-    for (int i = 0; i < 5; i++) {
-        printf("Thread 2: %d\n", i);
-    }
+// Function to be executed by all threads
+void* threadFunction(void* arg) {
+    int tid = *((int*)arg);
+    printf("Hello from thread %d\n", tid);
     return NULL;
 }
 
 int main() {
-    pthread_t tid1, tid2; // Thread IDs
-    if (pthread_create(&tid1, NULL, threadFunction1, NULL) != 0) {
-        perror("pthread_create");
-        exit(1);
+    pthread_t threads[5];
+    int thread_args[5];
+    
+    // Create and run each thread
+    for (int i = 0; i < 5; i++) {
+        thread_args[i] = i;
+        if (pthread_create(&threads[i], NULL, threadFunction, &thread_args[i]) != 0) {
+            perror("pthread_create");
+            return 1;
+        }
     }
-    if (pthread_create(&tid2, NULL, threadFunction2, NULL) != 0) {
-        perror("pthread_create");
-        exit(1);
+
+    // Wait for all threads to complete
+    for (int i = 0; i < 5; i++) {
+        if (pthread_join(threads[i], NULL) != 0) {
+            perror("pthread_join");
+            return 1;
+        }
     }
-    pthread_join(tid1, NULL); // Wait for the first thread to finish
-    pthread_join(tid2, NULL); // Wait for the second thread to finish
+
     return 0;
 }
-

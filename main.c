@@ -9,6 +9,13 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+typedef struct
+{
+    int *tid; 
+    char path[500];
+}t_arg;
+
+
 int isDir(const char *path) {
     struct stat st;
     
@@ -22,10 +29,12 @@ int isDir(const char *path) {
 }
 
 
-void *threadFun(char path[]){
-    printf("\nthread\n");
-    printf("%s", path);
-    directory_task(path);
+void *threadFun(void* args){
+    t_arg *cur_args = args;
+    printf("\nthread %d\n", *(cur_args->tid));
+    printf("%s\n", cur_args->path);
+   // directory_task(path);
+   free(cur_args);
     pthread_exit(NULL);
 }
 
@@ -127,7 +136,8 @@ void directory_task(char dir_address[]){
     int files_index = 0;
     int dir_index = 0;
 	DIR *dr = opendir(dir_address); 
-    pthread_t thread_ids[500];
+    pthread_t threads[500];
+    int thread_args[500];
 
 
 	if (dr == NULL) // opendir returns NULL if couldn't open directory 
@@ -140,12 +150,17 @@ void directory_task(char dir_address[]){
         if(!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")){
            continue;
         }
-        char path[100];
+        char path[500];
         make_path(dir_address, de->d_name, path);
         if(isDir(path) == 1) {
             directories[dir_index] = de;
-            pthread_create(&thread_ids[dir_index], NULL, threadFun(path), NULL);
+            thread_args[dir_index] = dir_index;
+            t_arg* args = malloc(sizeof *args);
+            args->tid = &dir_index;
+            strcpy(args->path, path);
+            pthread_create(&threads[dir_index], NULL, threadFun, args);
             dir_index++;
+            free(args);
         } else {
             files[files_index] = de;
             files_index++;
@@ -153,9 +168,9 @@ void directory_task(char dir_address[]){
         char empty[] = "";
         strcpy(path, empty);
     }
-    printf("fffffffffff%d\n", dir_index);
+    //printf("fffffffffff%d\n", dir_index);
     for(int i=0; i<dir_index; i++){
-        pthread_join(thread_ids[i], NULL);
+        pthread_join(threads[i], NULL);
     }
     for (int i = 0; i<dir_index; i++) {
         printf("%s\n", directories[i]->d_name);
