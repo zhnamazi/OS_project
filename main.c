@@ -30,11 +30,9 @@ int isDir(const char *path) {
 
 
 void *threadFun(void* args){
-    t_arg *cur_args = args;
-    printf("\nthread %d\n", *(cur_args->tid));
-    printf("%s\n", cur_args->path);
-   // directory_task(path);
-   free(cur_args);
+    char *str = args;
+    printf("\nthread %s\n", str);
+    directory_task(str);
     pthread_exit(NULL);
 }
 
@@ -155,12 +153,12 @@ void directory_task(char dir_address[]){
         if(isDir(path) == 1) {
             directories[dir_index] = de;
             thread_args[dir_index] = dir_index;
-            t_arg* args = malloc(sizeof *args);
-            args->tid = &dir_index;
-            strcpy(args->path, path);
+            char *args = path;
+            //strcpy(args, path);
             pthread_create(&threads[dir_index], NULL, threadFun, args);
+            pthread_join(threads[dir_index], NULL);
             dir_index++;
-            free(args);
+            //free(args);
         } else {
             files[files_index] = de;
             files_index++;
@@ -169,9 +167,9 @@ void directory_task(char dir_address[]){
         strcpy(path, empty);
     }
     //printf("fffffffffff%d\n", dir_index);
-    for(int i=0; i<dir_index; i++){
-        pthread_join(threads[i], NULL);
-    }
+    // for(int i=0; i<dir_index; i++){
+    //     pthread_join(threads[i], NULL);
+    // }
     for (int i = 0; i<dir_index; i++) {
         printf("%s\n", directories[i]->d_name);
     }
@@ -194,3 +192,4 @@ int main(void)
     first_task(dir_address);
     return 0;
 } 
+
