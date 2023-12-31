@@ -11,12 +11,22 @@
 
 
 pthread_mutex_t printMutex = PTHREAD_MUTEX_INITIALIZER;
+char empty[] = "";
+
+struct Node{
+    char name[500];
+    int isFile; // 1:file 0:dir
+    struct Node* rightMostChild; //the greates (first) child is the rightmost child
+    struct Node* left;
+    struct Node* right;
+};
 
 typedef struct
 {
-    int depth; 
+    struct Node *node; 
     char path[500];
 }t_arg;
+
 
 
 int isDir(const char *path) {
@@ -31,13 +41,12 @@ int isDir(const char *path) {
     }
 }
 
-
 void *threadFun(void* args){
     t_arg *a = (t_arg*)args;
-    pthread_mutex_lock(&printMutex);
-    //printf("\nthread %s\n", a->path);
-    pthread_mutex_unlock(&printMutex);
-    directory_task(a->path, a->depth);
+    // pthread_mutex_lock(&printMutex);
+    // //printf("\nthread %s\n", a->path);
+    // pthread_mutex_unlock(&printMutex);
+    directory_task(a->path, a->node);
     pthread_exit(NULL);
 }
 
@@ -47,13 +56,41 @@ void make_path(char parent[], char child[], char *path){
     strcat(path, child);
 }
 
-void first_task(char dir_address[]){
+void make_node(struct Node* node, char* name, int isFile, struct Node* rightchild, struct Node*right, struct Node* left){
+    strcpy((*node).name, name);
+    (*node).isFile = isFile;
+    (*node).rightMostChild = rightchild;
+    (*node).right = right;
+    (*node).left = left;
+}
+
+void print_tree(struct Node* root, int depth) {
+    for(int i=0;i<depth;i++){
+        printf("\t");
+    }
+    printf("%s\n", (*root).name);
+    struct Node* child = (*root).rightMostChild;
+    while(child != NULL && (*child).isFile == 0){
+        print_tree(child, depth + 1);
+        child = (*child).left;
+    }
+    while(child != NULL && (*child).isFile == 1){
+        for(int i=0;i<depth;i++){
+        printf("\t");
+        }
+        printf("%s\n", (*child).name);
+        child = (*child).left;
+    }
+}
+
+struct Node* first_task(char dir_address[]){
     struct dirent *de;
     struct dirent* files[500] = {NULL};
     struct dirent* directories[500] = {NULL};
     int files_index = 0;
     int dir_index = 0;
-	DIR *dr = opendir(dir_address); 
+	DIR *dr = opendir(dir_address);
+    struct Node rootDirectory;
 
     pid_t pids[200]; //number of process in main directory
     int pids_index = 0;
@@ -63,17 +100,13 @@ void first_task(char dir_address[]){
 	{ 
 		printf("Could not open current directory" );
 	} 
-
-	// Refer http://pubs.opengroup.org/onlinepubs/7990989775/xsh/readdir.html 
-	// for readdir() 
+    make_node(&rootDirectory, dir_address, 0, NULL, NULL, NULL);
 	while ((de = readdir(dr)) != NULL) {
         if(!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")){
            continue;
         }
         char path[500];
-        strcpy(path, dir_address);
-        strcat(path, "/");
-        strcat(path, de->d_name);
+        make_path(dir_address, de->d_name, path);
         if(isDir(path) == 1) {
             directories[dir_index] = de;
             dir_index++;
@@ -81,43 +114,38 @@ void first_task(char dir_address[]){
             files[files_index] = de;
             files_index++;
         }
-        char empty[] = "";
         strcpy(path, empty);
     }
-    printf("-----------------\n\n");
-    // for (int i = 0; i<dir_index; i++) {
-    //     printf("%s\n", directories[i]->d_name);
-    // }
-    // printf("-----------------\n\n");
-    // for (int i = 0; i<files_index; i++) {
-    //     printf("%s\n", files[i]->d_name);
-    // }
 
+
+    struct Node* pre_childNode;
     for (int i = 0; i < dir_index; i++) {
-        pthread_mutex_lock(&printMutex);
-        printf("%s\n", directories[i]->d_name);
-        pthread_mutex_unlock(&printMutex);
+        struct Node curr_childNode;
+        make_node(&curr_childNode, directories[i]->d_name, 0, NULL, NULL, NULL);
+        if(i==0){
+            rootDirectory.rightMostChild = &curr_childNode;
+        }
+        else {
+            (*pre_childNode).left = &curr_childNode;
+            curr_childNode.right = pre_childNode;
+        }
         pid_t pid = fork(); // Create a new process
 
-        if (pid < 0) {
-            // Fork failed
+        if (pid < 0) { // Fork failed
             fprintf(stderr, "Fork failed\n");
             exit(EXIT_FAILURE);
-        } else if (pid == 0) {
-            // This code is executed by the child process
-
-            printf("Child process %d is running\n", i);
+        } else if (pid == 0) { // This code is executed by the child process
+            printf("Child process %d is running\n", i); 
             char path[500];
-            strcpy(path, dir_address);
-            strcat(path, "/");
-            strcat(path, directories[i]->d_name);
-            directory_task(path, 1);
+            make_path(dir_address, directories[i]->d_name, path);
+            directory_task(path, &curr_childNode);
 
             // Perform a different task for each child process
             // For example, you can use the value of 'i' to determine the task
 
             exit(EXIT_SUCCESS); // Terminate the child process
         }
+        pre_childNode = &curr_childNode;
     }
 
     // This code is executed by the parent process
@@ -126,20 +154,30 @@ void first_task(char dir_address[]){
     for (int i = 0; i < dir_index; i++) {
         wait(NULL); // Wait for each child process to finish
     }
-    pthread_mutex_lock(&printMutex);
+    //pthread_mutex_lock(&printMutex);
     for (int i = 0; i<files_index; i++) {
-        printf("%s\n", files[i]->d_name);
+        struct Node curr_childNode;
+        make_node(&curr_childNode, files[i]->d_name, 1, NULL, NULL, NULL);
+        if(i==0 && dir_index == 0){
+            rootDirectory.rightMostChild = &curr_childNode;
+        }
+        else {
+            (*pre_childNode).left = &curr_childNode;
+            curr_childNode.right = pre_childNode;
+        }
+        pre_childNode = &curr_childNode;
+        //printf("%s\n", files[i]->d_name);
     }
-    pthread_mutex_unlock(&printMutex);
+    //pthread_mutex_unlock(&printMutex);
     //printf("All child processes have terminated\n");
 
 
 	closedir(dr);	 
-	return; 
+	return &rootDirectory; 
 }
 
 
-void directory_task(char dir_address[], int depth){
+void directory_task(char dir_address[], struct Node* root){
     struct dirent *de;
     struct dirent* files[500] = {NULL};
     struct dirent* directories[500] = {NULL};
@@ -155,7 +193,7 @@ void directory_task(char dir_address[], int depth){
 		printf("Could not open current directory" );
 	} 
 
-	
+	struct Node* pre_childNode;
 	while ((de = readdir(dr)) != NULL) {
         if(!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")){
            continue;
@@ -163,22 +201,26 @@ void directory_task(char dir_address[], int depth){
         char path[500];
         make_path(dir_address, de->d_name, path);
         if(isDir(path) == 1) {
-            pthread_mutex_lock(&printMutex);
-            for(int i=0;i<depth; i++){
-                printf("\t");
-            }
-            printf("%s\n", de->d_name);
-            pthread_mutex_unlock(&printMutex);
             directories[dir_index] = de;
             thread_args[dir_index] = dir_index;
             //char *args = path;
+            struct Node curr_cildNode;
+            make_node(&curr_cildNode, de->d_name, 0, NULL, NULL, NULL);
+            if(dir_index==0){
+                (*root).rightMostChild = &curr_cildNode;
+            }
+            else {
+                (*pre_childNode).left = &curr_cildNode;
+                curr_cildNode.right = pre_childNode;
+            }
             t_arg args;
             strcpy(args.path, path);
-            args.depth = depth + 1;
+            args.node = &curr_cildNode;
             pthread_create(&threads[dir_index], NULL, threadFun, &args);
             pthread_join(threads[dir_index], NULL);
             dir_index++;
             //free(args);
+            pre_childNode = &curr_cildNode;
         } else {
             files[files_index] = de;
             files_index++;
@@ -186,22 +228,19 @@ void directory_task(char dir_address[], int depth){
         char empty[] = "";
         strcpy(path, empty);
     }
-    //printf("fffffffffff%d\n", dir_index);
-    // for(int i=0; i<dir_index; i++){
-    //     pthread_join(threads[i], NULL);
-    // }
-    // for (int i = 0; i<dir_index; i++) {
-    //     printf("%s\n", directories[i]->d_name);
-    // }
-    pthread_mutex_lock(&printMutex);
-    printf("\n-----------------\n\n");
     for (int i = 0; i<files_index; i++) {
-        for(int j=0;j<depth; j++){
-            printf("\t");
+        struct Node curr_childNode;
+        make_node(&curr_childNode, files[files_index], 1, NULL, NULL, NULL);
+        if(i==0 && dir_index==0){
+            (*root).rightMostChild = &curr_childNode;
         }
-        printf("%s\n", files[i]->d_name);
+        else {
+            (*pre_childNode).left = &curr_childNode;
+            curr_childNode.right = pre_childNode;
+        }
+        pre_childNode = &curr_childNode;
     }
-    pthread_mutex_unlock(&printMutex);
+    // pthread_mutex_unlock(&printMutex);
     
 	closedir(dr);	 
 	return;
@@ -213,7 +252,8 @@ int main(void)
     char dir_address[500];
     printf("enter");
     scanf("%s", dir_address);
-    first_task(dir_address);
+    struct Node* root = first_task(dir_address);
+    //print_tree(root, 0);
     return 0;
 } 
 
