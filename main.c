@@ -8,16 +8,23 @@
 #include <pthread.h> 
 #include <stdlib.h>
 #include <unistd.h>
-
-
+#include <semaphore.h>
+#include <sys/mman.h>
+#include <bits/mman-linux.h>
+#include <sys/wait.h>
+sem_t sem1, sem2;
 pthread_mutex_t printMutex = PTHREAD_MUTEX_INITIALIZER;
-
+pthread_mutex_t pMutex = PTHREAD_MUTEX_INITIALIZER;
+typedef struct
+{
+   int count;
+} DOTDATA;
+DOTDATA dc;
 typedef struct
 {
     int depth; 
     char path[500];
 }t_arg;
-
 
 int isDir(const char *path) {
     struct stat st;
@@ -33,6 +40,7 @@ int isDir(const char *path) {
 
 
 void *threadFun(void* args){
+    
     t_arg *a = (t_arg*)args;
     pthread_mutex_lock(&printMutex);
     //printf("\nthread %s\n", a->path);
@@ -54,7 +62,7 @@ void first_task(char dir_address[]){
     int files_index = 0;
     int dir_index = 0;
 	DIR *dr = opendir(dir_address); 
-
+    
     pid_t pids[200]; //number of process in main directory
     int pids_index = 0;
 
@@ -79,6 +87,7 @@ void first_task(char dir_address[]){
             dir_index++;
         } else {
             files[files_index] = de;
+            dc.count++;
             files_index++;
         }
         char empty[] = "";
@@ -98,7 +107,6 @@ void first_task(char dir_address[]){
         printf("%s\n", directories[i]->d_name);
         pthread_mutex_unlock(&printMutex);
         pid_t pid = fork(); // Create a new process
-
         if (pid < 0) {
             // Fork failed
             fprintf(stderr, "Fork failed\n");
@@ -118,6 +126,8 @@ void first_task(char dir_address[]){
 
             exit(EXIT_SUCCESS); // Terminate the child process
         }
+        int returnStatus;    
+        waitpid(pid, &returnStatus, 0);
     }
 
     // This code is executed by the parent process
@@ -132,7 +142,6 @@ void first_task(char dir_address[]){
     }
     pthread_mutex_unlock(&printMutex);
     //printf("All child processes have terminated\n");
-
 
 	closedir(dr);	 
 	return; 
@@ -149,7 +158,6 @@ void directory_task(char dir_address[], int depth){
     pthread_t threads[500];
     int thread_args[500];
 
-
 	if (dr == NULL) // opendir returns NULL if couldn't open directory 
 	{ 
 		printf("Could not open current directory" );
@@ -164,6 +172,7 @@ void directory_task(char dir_address[], int depth){
         make_path(dir_address, de->d_name, path);
         if(isDir(path) == 1) {
             pthread_mutex_lock(&printMutex);
+            sem_wait(&sem1);
             for(int i=0;i<depth; i++){
                 printf("\t");
             }
@@ -177,10 +186,15 @@ void directory_task(char dir_address[], int depth){
             args.depth = depth + 1;
             pthread_create(&threads[dir_index], NULL, threadFun, &args);
             pthread_join(threads[dir_index], NULL);
+            //dc.count++;
+            //printf("count%d\n", dc.count);
             dir_index++;
+            sem_post(&sem1);
             //free(args);
         } else {
             files[files_index] = de;
+            dc.count++;
+            printf("count%d\n", dc.count);
             files_index++;
         }
         char empty[] = "";
@@ -202,7 +216,7 @@ void directory_task(char dir_address[], int depth){
         printf("%s\n", files[i]->d_name);
     }
     pthread_mutex_unlock(&printMutex);
-    
+    //pthread_exit(NULL);
 	closedir(dr);	 
 	return;
 }
@@ -213,7 +227,15 @@ int main(void)
     char dir_address[500];
     printf("enter");
     scanf("%s", dir_address);
+    sem_init(&sem1, 0, 1);
+    //sem_init(&sem2, 0, 1);
+    // int* p = (int*) mmap(NULL, sizeof (int) , PROT_READ | PROT_WRITE,
+    // MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    // *p = 0;
+    pthread_mutex_lock(&pMutex);
     first_task(dir_address);
+    pthread_mutex_unlock(&pMutex);
+    printf("%d\n", dc.count);
     return 0;
 } 
 
