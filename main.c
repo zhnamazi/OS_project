@@ -42,10 +42,10 @@ typedef struct
     //FileType fileTypes[500];
     int numTypes;
     long long max_size;
-    //char max_directory[500];
     long long min_size;
-    //char min_directory[500];
     long long total_size;
+    char max_directory[500];
+    char min_directory[500];
 }result;
 
 DOTDATA dc;
@@ -115,20 +115,22 @@ void first_task(char dir_address[]){
         } else {
             files[files_index] = de;
             //min max
-            // struct stat file;
-            // stat(path, &file);
-            // long long curSize = (long long)file.st_size;
-            // pthread_mutex_lock(&min_max_Mutex);
-            // if((*r).max_size < curSize){
-            //     (*r).max_size = curSize;
-            //     strcpy((*r).max_directory, path);
-            // }
-            // if((*r).min_size > curSize){
-            //     (*r).min_size = curSize;
-            //     strcpy((*r).min_directory, path);
-            // }
-            // pthread_mutex_unlock(&min_max_Mutex);
+            struct stat file;
+            stat(path, &file);
+            long long curSize = (long long)file.st_size;
+            printf("curr%lli\n", curSize);
+            //pthread_mutex_lock(&min_max_Mutex);
+            if((*r).max_size < curSize){
+                (*r).max_size = curSize;
+                strcpy((*r).max_directory, path);
+            }
+            if((*r).min_size > curSize){
+                (*r).min_size = curSize;
+                strcpy((*r).min_directory, path);
+            }
+            //pthread_mutex_unlock(&min_max_Mutex);
             //min max
+            printf("max%lli---min%lli--->>curr%lli--->>>in first task \n", (*r).max_size, (*r).min_size, curSize);
             dc.count++;
             files_index++;
         }
@@ -220,20 +222,22 @@ void directory_task(char dir_address[], int depth){
         } else {
             files[files_index] = de;
             //min max
-            // struct stat file;
-            // stat(path, &file);
-            // long long curSize = (&min_max_Mutex);
-            // pthread_mutex_lock(&min_max_Mutex);
-            // if((*r).max_size < curSize){
-            //     (*r).max_size = curSize;
-            //     strcpy((*r).max_directory, path);
-            // }
-            // if((*r).min_size > curSize){
-            //     (*r).min_size = curSize;
-            //     strcpy((*r).min_directory, path);
-            // }
-            // pthread_mutex_unlock(&min_max_Mutex);
+            struct stat file;
+            stat(path, &file);
+            long long curSize = (long long)file.st_size;
+            printf("curr is %lli\n", curSize);
+            pthread_mutex_lock(&min_max_Mutex);
+            if((*r).max_size < curSize){
+                (*r).max_size = curSize;
+                strcpy((*r).max_directory, path);
+            }
+            if((*r).min_size > curSize){
+                (*r).min_size = curSize;
+                strcpy((*r).min_directory, path);
+            }
+            pthread_mutex_unlock(&min_max_Mutex);
             // //min max
+            printf("max%lli---min%lli--->>curr%lli--->>>in first task \n", (*r).max_size, (*r).min_size, curSize);
             dc.count++;
             printf("count%d\n", dc.count);
             files_index++;
@@ -265,22 +269,20 @@ int main(void)
     scanf("%s", dir_address);
 
     key_t key = ftok("/path/to/your/file", 'R');
-    int shm_id = shmget(key, sizeof(result), IPC_CREAT | 0666);
+    int shm_id = shmget(IPC_PRIVATE, sizeof(result), IPC_CREAT | 0666);
     printf("id of shm:%d ", shm_id);
     r = (result*) shmat(shm_id, NULL, 0);
-    //(*r).max_size = 0;
-    // (*r).min_size = INFINITY;
-    // (*r).numTypes = 0;
-    // (*r).total_files = 0;
-    // (*r).total_size = 0;
-    
+    (*r).max_size = 0;
+    (*r).min_size = INFINITY;
+    (*r).numTypes = 0;
+    (*r).total_files = 0;
+    (*r).total_size = 0;
+    printf("%d---%lli--- ", (*r).max_size, (*r).min_size);
     first_task(dir_address);
-    //printf("max size: %lli, address of max file:\n", (*r).max_size);
-    //printf("min size: %lli, address of min file: %s\n", (*r).min_size, (*r).min_directory); 
+    printf("max size: %lli, address of max file: %s\n", (*r).max_size, (*r).max_directory);
+    printf("min size: %lli, address of min file: %s\n", (*r).min_size, (*r).min_directory); 
+    printf("total number of files in root directory: %d\n", (*r).total_files);
     printf("%d\n", dc.count);
-
-
-        printf("null result: %lli", r);
     
 
     shmdt(r);

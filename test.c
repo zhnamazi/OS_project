@@ -21,7 +21,8 @@ int main() {
     printf("%lli\n", shared_data);
     printf("id : %d\n", shm_id);
     shared_data = (struct YourStruct*) shmat(shm_id, NULL, 0);
-    printf("%lli\n", shared_data);
+    (*shared_data).intValue = 42;
+    printf("%lli\n", *shared_data);
     if(shared_data == NULL){
         printf("null");
     }
@@ -29,7 +30,7 @@ int main() {
     // (*shared_data).intValue = 42;
     // strcpy(shared_data->stringValue, "Hello, Shared Memory!");
 
-    // printf("Value in shared memory: %d\n", shared_data->intValue);
+     printf("Value in shared memory: %d\n", shared_data->intValue);
     // printf("String in shared memory: %s\n", shared_data->stringValue);
 
     // shmdt((void*) shared_data);
