@@ -237,7 +237,7 @@ void directory_task(char dir_address[], int depth){
             }
             pthread_mutex_unlock(&min_max_Mutex);
             // //min max
-            printf("max%lli---min%lli--->>curr%lli--->>>in first task \n", (*r).max_size, (*r).min_size, curSize);
+            printf("max%lli---min%lli--->>curr%lli--->>>in directory task \n", (*r).max_size, (*r).min_size, curSize);
             dc.count++;
             printf("count%d\n", dc.count);
             files_index++;
