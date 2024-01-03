@@ -1,33 +1,41 @@
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 #include <stdio.h>
-#include <pthread.h>
+#include <stdlib.h>
+#include <string.h>
 
-// Function to be executed by all threads
-void* threadFunction(void* arg) {
-    int tid = *((int*)arg);
-    printf("Hello from thread %d\n", tid);
-    return NULL;
-}
+struct YourStruct {
+    int intValue;
+    int anotherValue;
+    //char stringValue[50];
+    // Add other members as needed
+};
 
 int main() {
-    pthread_t threads[5];
-    int thread_args[5];
-    
-    // Create and run each thread
-    for (int i = 0; i < 5; i++) {
-        thread_args[i] = i;
-        if (pthread_create(&threads[i], NULL, threadFunction, &thread_args[i]) != 0) {
-            perror("pthread_create");
-            return 1;
-        }
+    key_t key = ftok("/path/to/your/file", 'R');
+    int shm_id = shmget(key, sizeof(struct YourStruct), IPC_CREAT | 0666);
+    struct YourStruct sd;
+    struct YourStruct *shared_data = &sd;
+    (*shared_data).intValue = 32;
+    printf("%lli\n", shared_data);
+    printf("id : %d\n", shm_id);
+    shared_data = (struct YourStruct*) shmat(shm_id, NULL, 0);
+    printf("%lli\n", shared_data);
+    if(shared_data == NULL){
+        printf("null");
     }
 
-    // Wait for all threads to complete
-    for (int i = 0; i < 5; i++) {
-        if (pthread_join(threads[i], NULL) != 0) {
-            perror("pthread_join");
-            return 1;
-        }
-    }
+    // (*shared_data).intValue = 42;
+    // strcpy(shared_data->stringValue, "Hello, Shared Memory!");
+
+    // printf("Value in shared memory: %d\n", shared_data->intValue);
+    // printf("String in shared memory: %s\n", shared_data->stringValue);
+
+    // shmdt((void*) shared_data);
+
+    // Optionally remove the shared memory segment
+    // shmctl(shm_id, IPC_RMID, NULL);
 
     return 0;
 }
